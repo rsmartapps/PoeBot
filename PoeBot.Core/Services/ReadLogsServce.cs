@@ -16,7 +16,7 @@ namespace PoeBot.Core.Services
         private static string PoE_Logs_Dir;
         private static string PoE_Logs_File;
 
-        public event EventHandler<TradeArgs> TradeIn;
+        public event EventHandler<TradeArgs> TradeRequest;
         public event EventHandler<TradeArgs> CustomerLeft;
         public event EventHandler<TradeArgs> CustomerArrived;
         public event EventHandler<TradeArgs> TradeCanceled;
@@ -95,11 +95,11 @@ namespace PoeBot.Core.Services
                                 }
                                 else if (ll.Contains("has left the area"))
                                 {
-                                    CustomerLeft.Invoke(this, new TradeArgs {  log24 = GetCustomerNick(ll) });
+                                    CustomerLeft.Invoke(this, new TradeArgs {  CustomerName = GetCustomerNick(ll) });
                                 }
                                 else if (ll.Contains("has joined the area"))
                                 {
-                                    CustomerArrived.Invoke(this, new TradeArgs {  log24 = GetCustomerNick(ll) });
+                                    CustomerArrived.Invoke(this, new TradeArgs { CustomerName = GetCustomerNick(ll) });
                                 }
                                 else if(ll.Contains("Trade accepted"))
                                 {
@@ -114,7 +114,7 @@ namespace PoeBot.Core.Services
                                     var customer = GetInfo(ll);
                                     if(customer != null)
                                     {
-                                        TradeIn.Invoke(this, new TradeArgs { TradeIn = customer });
+                                        TradeRequest.Invoke(this, new TradeArgs { customer = customer });
                                     }
                                 }
 

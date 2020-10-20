@@ -23,8 +23,12 @@ namespace PoeBot.Core.Services
         private readonly int Top_Stash64 = 135;
         private readonly int Left_Stash64 = 25;
 
-        Tab _Tab;
-        bool _IsRunning = false;
+        private Thread TradinngThread;
+
+        Tab _Tabs;
+        bool _InTrade = false;
+
+        int tradeAttemts = 5;
 
 
         public TradeService(ItemsService itemmService, CurrenciesService currenciesService, LoggerService logger, Tab tab)
@@ -32,10 +36,75 @@ namespace PoeBot.Core.Services
             _itemmService = itemmService;
             _CurrenciesService = currenciesService;
             _LoggerService = logger;
-            _Tab = tab;
+            _Tabs = tab;
             Customers = new List<CustomerInfo>();
             CompletedTrades = new List<CustomerInfo>();
         }
+
+        #region log requests
+        internal void TradeRequest(object sender, TradeArgs e)
+        {
+            Customers.Add(e.customer);
+            InviteCustomer(e.customer);
+            _LoggerService.Log("Trade registered "+e.customer.Nickname);
+        }
+        internal void StopAFK(object sender, EventArgs e)
+        {
+            Win32.ChatCommand("Hi, are u there?");
+            Win32.DoMouseRightClick();
+        }
+        internal void BeginTrade(object sender, TradeArgs e)
+        {
+            var customer = Customers.FirstOrDefault(c => c.Nickname == e.CustomerName);
+            if(customer == null)
+            {
+                _LoggerService.Log($"Customer {e.CustomerName} not found in my trade list");
+                return;
+            }
+            _LoggerService.Log("Customer arrived " + customer.Nickname);
+            if(customer.OrderType == CustomerInfo.OrderTypes.SINGLE)
+            {
+                WithrawItemFromStash(customer);
+            }
+            else if (customer.OrderType == CustomerInfo.OrderTypes.MANY)
+            {
+                WithrawTradeItemsFromStash(customer);
+            }
+            CurrentCustomer = customer;
+            RequestTrade();
+        }
+        internal void CustomerLeft(object sender, TradeArgs e)
+        {
+            _LoggerService.Log("Customer left " + e.CustomerName);
+            var customer = Customers.FirstOrDefault(c => c.Nickname == e.CustomerName);
+            if(customer != null)
+                EndTrade(customer);
+        }
+        internal void TradeCanceled(object sender, TradeArgs e)
+        {
+            if (CurrentCustomer == null)
+                return;
+            _LoggerService.Log("Trade canceled " + CurrentCustomer.Nickname);
+            --tradeAttemts;
+            if (tradeAttemts <= 0)
+                EndTrade(CurrentCustomer);
+            else
+            {
+                TradinngThread.Abort();
+                Thread.Sleep(500);
+                RequestTrade();
+            }
+        }
+        internal void TradeAccepted(object sender, TradeArgs e)
+        {
+            if(CurrentCustomer != null)
+            {
+                _LoggerService.Log("Trade accepted " + CurrentCustomer.Nickname);
+
+                EndTrade(CurrentCustomer);
+            }
+        }
+        #endregion
 
         #region Trade Functions
         private void InviteCustomer(CustomerInfo customer)
@@ -45,70 +114,6 @@ namespace PoeBot.Core.Services
             string command = "/invite " + customer.Nickname;
 
             Win32.ChatCommand(command);
-        }
-
-        internal void StopAFK(object sender, EventArgs e)
-        {
-            Win32.ChatCommand("Hi, are u there?");
-            Win32.DoMouseRightClick();
-        }
-
-        internal void TradeIn(object sender, TradeArgs e)
-        {
-            Customers.Add(e.TradeIn);
-            InviteCustomer(e.TradeIn);
-            _LoggerService.Log("Trade registered "+e.TradeIn.Nickname);
-        }
-
-        internal void CustomerArrived(object sender, TradeArgs e)
-        {
-            var customer = Customers.FirstOrDefault(c => c.Nickname == e.log24);
-            if(customer == null)
-            {
-                _LoggerService.Log($"Customer {e.log24} not found in my trade list");
-                return;
-            }
-            _LoggerService.Log("Customer arrived " + customer.Nickname);
-            if(customer.OrderType == CustomerInfo.OrderTypes.SINGLE)
-            {
-                TradeSingle(customer);
-            }
-            else if (customer.OrderType == CustomerInfo.OrderTypes.MANY)
-            {
-                TradeMany();
-            }
-            CurrentCustomer = customer;
-            TradeQuery();
-        }
-
-        internal void CustomerLeft(object sender, TradeArgs e)
-        {
-            _LoggerService.Log("Customer left " + e.log24);
-            var customer = Customers.FirstOrDefault(c => c.Nickname == e.log24);
-            if(customer != null)
-                EndTrade(customer);
-        }
-        int tradeAttemts = 5;
-        internal void TradeCanceled(object sender, TradeArgs e)
-        {
-            if (CurrentCustomer == null)
-                return;
-            _LoggerService.Log("Trade canceled " + CurrentCustomer.Nickname);
-            --tradeAttemts;
-            if(tradeAttemts <= 0)
-                EndTrade(CurrentCustomer);
-            else
-                TradeQuery();
-        }
-
-        internal void TradeAccepted(object sender, TradeArgs e)
-        {
-            if(CurrentCustomer != null)
-            {
-                _LoggerService.Log("Trade accepted " + CurrentCustomer.Nickname);
-
-                EndTrade(CurrentCustomer);
-            }
         }
 
         public void EndTrade(CustomerInfo customer,bool succeed = false)
@@ -138,162 +143,6 @@ namespace PoeBot.Core.Services
                 ClearInventory();
             }
 
-        }
-
-        public bool OpenStash()
-        {
-            Bitmap screen_shot = null;
-            Position found_pos = null;
-
-            if (Win32.GetActiveWindowTitle() != "Path of Exile")
-            {
-                Win32.PoE_MainWindow();
-            }
-
-            //find stash poition
-
-            _LoggerService.Log("Search stash in location...");
-
-            for (int search_pos = 0; search_pos < 20; search_pos++)
-            {
-                screen_shot = ScreenCapture.CaptureScreen();
-                found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/stashtitle.png");
-
-                if (found_pos.IsVisible)
-                {
-                    Win32.MoveTo(found_pos.Left + found_pos.Width / 2, found_pos.Top + found_pos.Height);
-
-                    Thread.Sleep(100);
-
-                    Win32.DoMouseClick();
-
-                    Thread.Sleep(100);
-
-                    Win32.MoveTo(screen_shot.Width / 2, screen_shot.Height / 2);
-
-                    var timer = DateTime.Now + new TimeSpan(0, 0, 5);
-
-                    while (true)
-                    {
-                        screen_shot = ScreenCapture.CaptureRectangle(140, 32, 195, 45);
-
-                        var pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/open_stash.png");
-
-                        if (pos.IsVisible)
-                        {
-                            screen_shot.Dispose();
-
-                            return true;
-                        }
-
-                        if (timer < DateTime.Now)
-                            break;
-
-                        Thread.Sleep(500);
-                    }
-                }
-
-                screen_shot.Dispose();
-
-                Thread.Sleep(500);
-            }
-
-            _LoggerService.Log("Stash is not found");
-
-            return false;
-        }
-
-        private bool TakeProduct(CustomerInfo customer)
-        {
-            Bitmap screen_shot = null;
-            Position found_pos = null;
-
-
-
-            if (Win32.GetActiveWindowTitle() != "Path of Exile")
-            {
-                Win32.PoE_MainWindow();
-            }
-
-
-            _LoggerService.Log("Search trade tab...");
-
-            for (int count_try = 0; count_try < 16; count_try++)
-            {
-                screen_shot = ScreenCapture.CaptureRectangle(10, 90, 450, 30);
-
-                found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/notactive_trade_tab.jpg");
-
-                if (found_pos.IsVisible)
-                    break;
-                else
-                {
-                    found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/active_trade_tab.jpg");
-                    if (found_pos.IsVisible)
-                    {
-                        break;
-                    }
-                }
-
-                screen_shot.Dispose();
-
-                Thread.Sleep(500);
-            }
-
-            screen_shot.Dispose();
-
-            if (found_pos.IsVisible)
-            {
-                Win32.MoveTo(10 + found_pos.Left + found_pos.Width / 2, 90 + found_pos.Top + found_pos.Height / 2);
-
-                Thread.Sleep(100);
-
-                Win32.DoMouseClick();
-
-                Thread.Sleep(300);
-                Win32.MoveTo(Constants.Left_Stash64 + 38 * (customer.Left - 1), Constants.Top_Stash64 + 38 * (customer.Top - 1));
-
-                Thread.Sleep(1000);
-
-                string ctrlc = CommandsService.CtrlC_PoE();
-
-                string product_clip = _itemmService.GetNameItem_PoE(ctrlc);
-
-                if (product_clip == null || !customer.Product.Contains(product_clip))
-                {
-                    _LoggerService.Log("not found item");
-
-                    Win32.ChatCommand($"@{customer.Nickname} I sold it, sry");
-
-                    Win32.SendKeyInPoE("{ESC}");
-
-                    return false;
-                }
-
-                if (_itemmService.IsValidPrice(ctrlc, customer))
-                {
-                    _LoggerService.Log("Fake price");
-
-                    Win32.ChatCommand($"@{customer.Nickname} It is not my price!");
-
-                    Win32.SendKeyInPoE("{ESC}");
-
-                    return false;
-                }
-
-                Win32.CtrlMouseClick();
-
-                Thread.Sleep(100);
-
-                Win32.MoveTo(750, 350);
-
-                Win32.SendKeyInPoE("{ESC}");
-
-                return true;
-
-            }
-
-            return false;
         }
 
         private bool CheckArea()
@@ -607,251 +456,182 @@ namespace PoeBot.Core.Services
             Win32.ChatCommand("/kick " + customer.Nickname);
         }
 
-        #endregion
-
-
-
-        private bool TakeItems(string name_tab = "trade_tab")
+        private void RequestTrade()
         {
-            Position found_pos = null;
-
-            _LoggerService.Log($"Search {name_tab} trade tab...");
-
-            for (int count_try = 0; count_try < 16; count_try++)
+            TradinngThread = new Thread(() =>
             {
-                var screen_shot = ScreenCapture.CaptureRectangle(10, 90, 450, 30);
-
-                found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/notactive_" + name_tab + ".jpg");
-
-                if (found_pos.IsVisible)
-                    break;
-                else
+                if (Win32.GetActiveWindowTitle() != "Path of Exile")
                 {
-                    found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/active_" + name_tab + ".jpg");
-                    if (found_pos.IsVisible)
-                    {
-                        screen_shot.Dispose();
+                    Win32.PoE_MainWindow();
+                }
 
-                        break;
+                // check if im invited
+                if (!AcceptTradeRequest())
+                {
+                    // Send trade request
+                    SendTradeRequest();
+                }
+                // Move items to trade window
+                while(!IsTradeStarted())
+                {
+                    Thread.Sleep(100);
+                }
+
+                if(!PutItems())
+                {
+                    // TODO add actio to end trade if cant put items
+                    return;
+                }
+
+                // validate until cancel or ok
+                bool IsNotPaidYet = true;
+                while (IsNotPaidYet)
+                {
+                    if (CheckCurrency())
+                    {
+                        IsNotPaidYet = false;
                     }
                 }
+                // accept trade
+                AccepTrade();
+            });
+            TradinngThread.SetApartmentState(ApartmentState.STA);
+            TradinngThread.Start();
+        }
+        bool SecondAcceptAttempt = false;
+        private void AccepTrade()
+        {
+            _LoggerService.Log("Check trade window");
+            Bitmap screen_shot = ScreenCapture.CaptureRectangle(330, 15, 235, 130);
+            Position found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/trade_window_title.png");
+            if (found_pos.IsVisible)
+            {
+                screen_shot.Dispose();
+                _LoggerService.Log("I am in trade!");
+            }
+            else
+            {
+                if (SecondAcceptAttempt)
+                {
+                    return;
+                }
+                SecondAcceptAttempt = true;
+                CheckCurrency();
+                AccepTrade();
+            }
+        }
+
+        private bool IsTradeStarted()
+        {
+            int x_trade = 220;
+            int y_trade = 140;
+
+            Bitmap screen_shot = ScreenCapture.CaptureRectangle(x_trade, y_trade, 465, 200);
+
+            Position found_positions = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/empty_cel.png", 0.5);
+
+            screen_shot.Dispose();
+
+            return found_positions.IsVisible;
+        }
+
+        private void SendTradeRequest()
+        {
+            _LoggerService.Log($"Send trade request with {CurrentCustomer.Nickname}");
+            string trade_command = "/tradewith " + CurrentCustomer.Nickname;
+            Win32.ChatCommand(trade_command);
+        }
+
+        private bool AcceptTradeRequest()
+        {
+            Bitmap screen_shot = ScreenCapture.CaptureRectangle(1030, 260, 330, 500);
+
+            Position found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/accespt.png");
+
+            if (found_pos.IsVisible)
+            {
+                _LoggerService.Log("I will Accept trade request!");
+
+                Win32.MoveTo(1030 + found_pos.Left + found_pos.Width / 2, 260 + found_pos.Top + found_pos.Height / 2);
+
+                Thread.Sleep(100);
+
+                Win32.DoMouseClick();
+
+                Thread.Sleep(100);
+
+                Win32.MoveTo((1030 + screen_shot.Width) / 2, (260 + screen_shot.Height) / 2);
+
+                return true;
+            }
+            return false;
+        }
+
+        #endregion
+
+        #region Inventory actions
+        public bool OpenStash()
+        {
+            Bitmap screen_shot = null;
+            Position found_pos = null;
+
+            if (Win32.GetActiveWindowTitle() != "Path of Exile")
+            {
+                Win32.PoE_MainWindow();
+            }
+
+            //find stash poition
+
+            _LoggerService.Log("Search stash in location...");
+
+            for (int search_pos = 0; search_pos < 20; search_pos++)
+            {
+                screen_shot = ScreenCapture.CaptureScreen();
+                found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/stashtitle.png");
+
+                if (found_pos.IsVisible)
+                {
+                    Win32.MoveTo(found_pos.Left + found_pos.Width / 2, found_pos.Top + found_pos.Height);
+
+                    Thread.Sleep(100);
+
+                    Win32.DoMouseClick();
+
+                    Thread.Sleep(100);
+
+                    Win32.MoveTo(screen_shot.Width / 2, screen_shot.Height / 2);
+
+                    var timer = DateTime.Now + new TimeSpan(0, 0, 5);
+
+                    while (true)
+                    {
+                        screen_shot = ScreenCapture.CaptureRectangle(140, 32, 195, 45);
+
+                        var pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/open_stash.png");
+
+                        if (pos.IsVisible)
+                        {
+                            screen_shot.Dispose();
+
+                            return true;
+                        }
+
+                        if (timer < DateTime.Now)
+                            break;
+
+                        Thread.Sleep(500);
+                    }
+                }
+
                 screen_shot.Dispose();
 
                 Thread.Sleep(500);
             }
 
-            if (found_pos.IsVisible)
-            {
-                Win32.MoveTo(10 + found_pos.Left + found_pos.Width / 2, 90 + found_pos.Top + found_pos.Height / 2);
-
-                Thread.Sleep(200);
-
-                Win32.DoMouseClick();
-
-                Thread.Sleep(250);
-
-                var customer = CurrentCustomer;
-
-                var min_price = new Price
-                {
-                    Cost = customer.Cost,
-                    CurrencyType = customer.Currency,
-                    ForNumberItems = customer.NumberProducts
-                };
-
-                var items = _Tab.GetItems(customer.NumberProducts, customer.Product, min_price);
-
-                if (items.Any())
-                {
-                    int TotalAmount = 0;
-
-                    foreach (Item i in items)
-                    {
-                        TotalAmount += i.SizeInStack;
-
-                        Win32.MoveTo(Left_Stash64 + 38 * i.Places.First().Left, Top_Stash64 + 38 * i.Places.First().Top);
-
-                        Thread.Sleep(100);
-
-                        string item_info = CommandsService.CtrlC_PoE();
-
-                        if (!item_info.Contains(i.Name))
-                        {
-                            _LoggerService.Log("Information incorrect.");
-
-                            return false;
-                        }
-
-                        if (TotalAmount > customer.NumberProducts)
-                        {
-                            TotalAmount -= i.SizeInStack;
-
-                            int necessary = customer.NumberProducts - TotalAmount;
-
-                            i.SizeInStack -= necessary;
-
-                            _Tab.AddItem(i);
-
-                            TotalAmount += necessary;
-
-                            Win32.ShiftClick();
-
-                            Thread.Sleep(100);
-
-                            Win32.SendNumber_PoE(necessary);
-
-                            Win32.SendKeyInPoE("{ENTER}");
-
-                            PutInInventory();
-
-                        }
-                        else
-                        {
-                            Win32.CtrlMouseClick();
-                        }
-
-
-                        if (TotalAmount == customer.NumberProducts)
-                        {
-                            Win32.SendKeyInPoE("{ESC}");
-
-                            return true;
-                        }
-                    }
-                }
-                else
-                {
-                    _LoggerService.Log("Items not found!");
-
-                    Win32.ChatCommand($"@{customer.Nickname} maybe I sold it");
-                }
-
-            }
-
-            _LoggerService.Log("Tab not found");
+            _LoggerService.Log("Stash is not found");
 
             return false;
         }
-
-        private void PutInInventory()
-        {
-            var screen_shot = ScreenCapture.CaptureRectangle(900, 420, 460, 200);
-
-            var empty_poss = OpenCV_Service.FindObjects(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/empty_cel.png", 0.5);
-
-            if (empty_poss.Any())
-            {
-                foreach (Position pos in empty_poss)
-                {
-                    Win32.MoveTo(900 + pos.Left, 420 + pos.Top);
-
-                    var info = CommandsService.CtrlC_PoE();
-
-                    Thread.Sleep(100);
-
-                    if (info == "empty_string")
-                    {
-                        Win32.DoMouseClick();
-
-                        Thread.Sleep(150);
-
-                        screen_shot.Dispose();
-
-                        return;
-                    }
-                }
-            }
-
-            else
-                _LoggerService.Log("Inventory is full");
-        }
-
-        private bool PutItems()
-        {
-            int x_inventory = 925;
-            int y_inventory = 440;
-            int offset = 37;
-
-            var customer = CurrentCustomer;
-
-            int TotalAmount = 0;
-
-            List<Cell> skip = new List<Cell>();
-
-            for (int j = 0; j < 12; j++)
-            {
-                for (int i = 0; i < 5; i++)
-                {
-                    if (skip.Find(cel => cel.Left == i && cel.Top == j) != null)
-                    {
-                        continue;
-                    }
-
-                    Win32.MoveTo(x_inventory + offset * j, y_inventory + 175);
-
-                    Thread.Sleep(100);
-
-                    var screen_shot = ScreenCapture.CaptureRectangle(x_inventory - 30 + offset * j, y_inventory - 30 + offset * i, 60, 60);
-
-                    var pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/empty_cel.png", 0.5);
-
-                    if (!pos.IsVisible)
-                    {
-                        Win32.MoveTo(x_inventory + offset * j, y_inventory + offset * i);
-
-                        var item_info = CommandsService.CtrlC_PoE();
-
-                        string name = CommandsService.GetNameItem_PoE_Pro(item_info);
-
-                        if (name != customer.Product)
-                        {
-                            continue;
-                        }
-
-                        int SizeInStack = CommandsService.GetStackSize_PoE_Pro(item_info);
-
-                        TotalAmount += SizeInStack;
-
-                        if (name.Contains("Resonator"))
-                        {
-                            if (name.Contains("Potent"))
-                            {
-                                skip.Add(new Cell(i, j + 1));
-
-                            }
-
-                            if (name.Contains("Prime") || name.Contains("Powerful"))
-                            {
-                                skip.Add(new Cell(i, j + 1));
-                                skip.Add(new Cell(i + 1, j + 1));
-                                skip.Add(new Cell(i + 1, j));
-                            }
-                        }
-
-                        Win32.CtrlMouseClick();
-
-                        Thread.Sleep(250);
-
-                        if (TotalAmount >= customer.NumberProducts)
-                        {
-                            screen_shot.Dispose();
-
-                            _LoggerService.Log($"I put {TotalAmount} items in trade window");
-
-                            return true;
-                        }
-                    }
-
-                    screen_shot.Dispose();
-                }
-            }
-            Win32.SendKeyInPoE("{ESC}");
-
-            Win32.ChatCommand("@" + CurrentCustomer.Nickname + " i sold it, sry");
-
-            return false;
-        }
-
         public void ScanTab(string name_tab = "trade_tab")
         {
             Position found_pos = null;
@@ -962,7 +742,7 @@ namespace PoeBot.Core.Services
                                     }
                                 }
 
-                                _Tab.AddItem(item);
+                                _Tabs.AddItem(item);
 
                                 #endregion
                             }
@@ -1070,10 +850,340 @@ namespace PoeBot.Core.Services
                 throw new Exception($"{recycle_tab} not found!");
             }
         }
-
-        private void TradeSingle(CustomerInfo customer)
+        private bool TakeProduct(CustomerInfo customer)
         {
-            this._IsRunning = true;
+            Bitmap screen_shot = null;
+            Position found_pos = null;
+
+
+
+            if (Win32.GetActiveWindowTitle() != "Path of Exile")
+            {
+                Win32.PoE_MainWindow();
+            }
+
+
+            _LoggerService.Log("Search trade tab...");
+
+            for (int count_try = 0; count_try < 16; count_try++)
+            {
+                screen_shot = ScreenCapture.CaptureRectangle(10, 90, 450, 30);
+
+                found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/notactive_trade_tab.jpg");
+
+                if (found_pos.IsVisible)
+                    break;
+                else
+                {
+                    found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/active_trade_tab.jpg");
+                    if (found_pos.IsVisible)
+                    {
+                        break;
+                    }
+                }
+
+                screen_shot.Dispose();
+
+                Thread.Sleep(500);
+            }
+
+            screen_shot.Dispose();
+
+            if (found_pos.IsVisible)
+            {
+                Win32.MoveTo(10 + found_pos.Left + found_pos.Width / 2, 90 + found_pos.Top + found_pos.Height / 2);
+
+                Thread.Sleep(100);
+
+                Win32.DoMouseClick();
+
+                Thread.Sleep(300);
+                Win32.MoveTo(Constants.Left_Stash64 + 38 * (customer.Left - 1), Constants.Top_Stash64 + 38 * (customer.Top - 1));
+
+                Thread.Sleep(1000);
+
+                string ctrlc = CommandsService.CtrlC_PoE();
+
+                string product_clip = _itemmService.GetNameItem_PoE(ctrlc);
+
+                if (product_clip == null || !customer.Product.Contains(product_clip))
+                {
+                    _LoggerService.Log("not found item");
+
+                    Win32.ChatCommand($"@{customer.Nickname} I sold it, sry");
+
+                    Win32.SendKeyInPoE("{ESC}");
+
+                    return false;
+                }
+
+                if (_itemmService.IsValidPrice(ctrlc, customer))
+                {
+                    _LoggerService.Log("Fake price");
+
+                    Win32.ChatCommand($"@{customer.Nickname} It is not my price!");
+
+                    Win32.SendKeyInPoE("{ESC}");
+
+                    return false;
+                }
+
+                Win32.CtrlMouseClick();
+
+                Thread.Sleep(100);
+
+                Win32.MoveTo(750, 350);
+
+                Win32.SendKeyInPoE("{ESC}");
+
+                return true;
+
+            }
+
+            return false;
+        }
+        private bool TakeItems(string name_tab = "trade_tab")
+        {
+            Position found_pos = null;
+
+            _LoggerService.Log($"Search {name_tab} trade tab...");
+
+            for (int count_try = 0; count_try < 16; count_try++)
+            {
+                var screen_shot = ScreenCapture.CaptureRectangle(10, 90, 450, 30);
+
+                found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/notactive_" + name_tab + ".jpg");
+
+                if (found_pos.IsVisible)
+                    break;
+                else
+                {
+                    found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/active_" + name_tab + ".jpg");
+                    if (found_pos.IsVisible)
+                    {
+                        screen_shot.Dispose();
+
+                        break;
+                    }
+                }
+                screen_shot.Dispose();
+
+                Thread.Sleep(500);
+            }
+
+            if (found_pos.IsVisible)
+            {
+                Win32.MoveTo(10 + found_pos.Left + found_pos.Width / 2, 90 + found_pos.Top + found_pos.Height / 2);
+
+                Thread.Sleep(200);
+
+                Win32.DoMouseClick();
+
+                Thread.Sleep(250);
+
+                var customer = CurrentCustomer;
+
+                var min_price = new Price
+                {
+                    Cost = customer.Cost,
+                    CurrencyType = customer.Currency,
+                    ForNumberItems = customer.NumberProducts
+                };
+
+                var items = _Tabs.GetItems(customer.NumberProducts, customer.Product, min_price);
+
+                if (items.Any())
+                {
+                    int TotalAmount = 0;
+
+                    foreach (Item i in items)
+                    {
+                        TotalAmount += i.SizeInStack;
+
+                        Win32.MoveTo(Left_Stash64 + 38 * i.Places.First().Left, Top_Stash64 + 38 * i.Places.First().Top);
+
+                        Thread.Sleep(100);
+
+                        string item_info = CommandsService.CtrlC_PoE();
+
+                        if (!item_info.Contains(i.Name))
+                        {
+                            _LoggerService.Log("Information incorrect.");
+
+                            return false;
+                        }
+
+                        if (TotalAmount > customer.NumberProducts)
+                        {
+                            TotalAmount -= i.SizeInStack;
+
+                            int necessary = customer.NumberProducts - TotalAmount;
+
+                            i.SizeInStack -= necessary;
+
+                            _Tabs.AddItem(i);
+
+                            TotalAmount += necessary;
+
+                            Win32.ShiftClick();
+
+                            Thread.Sleep(100);
+
+                            Win32.SendNumber_PoE(necessary);
+
+                            Win32.SendKeyInPoE("{ENTER}");
+
+                            PutInInventory();
+
+                        }
+                        else
+                        {
+                            Win32.CtrlMouseClick();
+                        }
+
+
+                        if (TotalAmount == customer.NumberProducts)
+                        {
+                            Win32.SendKeyInPoE("{ESC}");
+
+                            return true;
+                        }
+                    }
+                }
+                else
+                {
+                    _LoggerService.Log("Items not found!");
+
+                    Win32.ChatCommand($"@{customer.Nickname} maybe I sold it");
+                }
+
+            }
+
+            _LoggerService.Log("Tab not found");
+
+            return false;
+        }
+        private void PutInInventory()
+        {
+            var screen_shot = ScreenCapture.CaptureRectangle(900, 420, 460, 200);
+
+            var empty_poss = OpenCV_Service.FindObjects(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/empty_cel.png", 0.5);
+
+            if (empty_poss.Any())
+            {
+                foreach (Position pos in empty_poss)
+                {
+                    Win32.MoveTo(900 + pos.Left, 420 + pos.Top);
+
+                    var info = CommandsService.CtrlC_PoE();
+
+                    Thread.Sleep(100);
+
+                    if (info == "empty_string")
+                    {
+                        Win32.DoMouseClick();
+
+                        Thread.Sleep(150);
+
+                        screen_shot.Dispose();
+
+                        return;
+                    }
+                }
+            }
+
+            else
+                _LoggerService.Log("Inventory is full");
+        }
+        private bool PutItems()
+        {
+            int x_inventory = 925;
+            int y_inventory = 440;
+            int offset = 37;
+
+            var customer = CurrentCustomer;
+
+            int TotalAmount = 0;
+
+            List<Cell> skip = new List<Cell>();
+
+            for (int j = 0; j < 12; j++)
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    if (skip.Find(cel => cel.Left == i && cel.Top == j) != null)
+                    {
+                        continue;
+                    }
+
+                    Win32.MoveTo(x_inventory + offset * j, y_inventory + 175);
+
+                    Thread.Sleep(100);
+
+                    var screen_shot = ScreenCapture.CaptureRectangle(x_inventory - 30 + offset * j, y_inventory - 30 + offset * i, 60, 60);
+
+                    var pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/empty_cel.png", 0.5);
+
+                    if (!pos.IsVisible)
+                    {
+                        Win32.MoveTo(x_inventory + offset * j, y_inventory + offset * i);
+
+                        var item_info = CommandsService.CtrlC_PoE();
+
+                        string name = CommandsService.GetNameItem_PoE_Pro(item_info);
+
+                        if (name != customer.Product)
+                        {
+                            continue;
+                        }
+
+                        int SizeInStack = CommandsService.GetStackSize_PoE_Pro(item_info);
+
+                        TotalAmount += SizeInStack;
+
+                        if (name.Contains("Resonator"))
+                        {
+                            if (name.Contains("Potent"))
+                            {
+                                skip.Add(new Cell(i, j + 1));
+
+                            }
+
+                            if (name.Contains("Prime") || name.Contains("Powerful"))
+                            {
+                                skip.Add(new Cell(i, j + 1));
+                                skip.Add(new Cell(i + 1, j + 1));
+                                skip.Add(new Cell(i + 1, j));
+                            }
+                        }
+
+                        Win32.CtrlMouseClick();
+
+                        Thread.Sleep(250);
+
+                        if (TotalAmount >= customer.NumberProducts)
+                        {
+                            screen_shot.Dispose();
+
+                            _LoggerService.Log($"I put {TotalAmount} items in trade window");
+
+                            return true;
+                        }
+                    }
+
+                    screen_shot.Dispose();
+                }
+            }
+            Win32.SendKeyInPoE("{ESC}");
+
+            Win32.ChatCommand("@" + CurrentCustomer.Nickname + " i sold it, sry");
+
+            return false;
+        }
+        #endregion
+
+        private void WithrawItemFromStash(CustomerInfo customer)
+        {
             if(tradeAttemts == 5)
             {
 
@@ -1084,7 +1194,6 @@ namespace PoeBot.Core.Services
                 Customers.Remove(customer);
 
                 _LoggerService.Log($"\nTrade end with {customer.Nickname}! stash not found");
-                _IsRunning = false;
                 return;
             }
 
@@ -1095,12 +1204,11 @@ namespace PoeBot.Core.Services
                 Customers.Remove(customer);
 
                 _LoggerService.Log($"\nTrade end with {customer.Nickname}! item not found");
-                _IsRunning = false;
                 return;
                 }
             }
         }
-        private void TradeMany()
+        private void WithrawTradeItemsFromStash(CustomerInfo customer)
         {
             #region Many items
 

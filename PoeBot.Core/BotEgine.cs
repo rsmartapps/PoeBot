@@ -60,7 +60,7 @@ namespace PoeBot.Core
 
             // Listen for trades
             _LogReaderServices =new ReadLogsServce(_loggerService, _CurrenciesSerive);
-            _LogReaderServices.TradeIn += _TradeService.TradeIn;
+            _LogReaderServices.TradeRequest += _TradeService.TradeRequest;
 
             // Move for not been afk
             _LogReaderServices.AFK += _TradeService.StopAFK;
@@ -72,7 +72,7 @@ namespace PoeBot.Core
             //Trade customer left event
             _LogReaderServices.CustomerLeft += _TradeService.CustomerLeft;
             // Trade customer arrived event
-            _LogReaderServices.CustomerArrived += _TradeService.CustomerArrived;
+            _LogReaderServices.CustomerArrived += _TradeService.BeginTrade;
         }
 
         public void Stop()

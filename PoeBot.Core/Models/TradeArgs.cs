@@ -8,8 +8,8 @@ namespace PoeBot.Core.Models
 {
     public class TradeArgs : EventArgs
     {
-        public CustomerInfo TradeIn;
+        public CustomerInfo customer;
         public bool IsAFK;
-        public string log24;
+        public string CustomerName;
     }
 }
