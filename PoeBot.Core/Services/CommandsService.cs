@@ -63,7 +63,7 @@ namespace PoeBot.Core.Services
                 return str;
             }
 
-            if (item_info.Contains("Map Tier:"))
+            else if (item_info.Contains("Map Tier:"))
             {
                 if (item_info.Contains("Rarity: Rare"))
                 {
@@ -96,17 +96,36 @@ namespace PoeBot.Core.Services
 
             }
 
-            if (item_info.Contains("Rarity: Divination Card"))
+            else if (item_info.Contains("Rarity: Divination Card"))
             {
                 return Regex.Match(item_info, @"Rarity: Divination Card\s([\w ']*)").Groups[1].Value;
             }
 
             //I think that it for predicate fragments
-            if (!item_info.Contains("Requirements:"))
+            else if (!item_info.Contains("Requirements:"))
             {
                 if (item_info.Contains("Rarity: Normal"))
                 {
                     return Regex.Match(item_info, @"Rarity: Normal\s([\w ']*)").Groups[1].Value;
+                }
+            }
+            else
+            {
+                var stbName = new StringBuilder();
+                var splitteddName = item_info.Split(Environment.NewLine.ToArray(),StringSplitOptions.RemoveEmptyEntries);
+                foreach(var item in splitteddName)
+                {
+                    if (item.Contains("Rarity"))
+                        continue;
+                    if (item.Contains("---"))
+                    {
+                        return stbName.ToString();
+                    } 
+                    else
+                    {
+                        stbName.Append(item);
+                    }
+
                 }
             }
 

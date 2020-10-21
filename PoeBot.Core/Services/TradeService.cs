@@ -3,6 +3,7 @@ using PoeBot.Core.Models.Test;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -55,6 +56,7 @@ namespace PoeBot.Core.Services
         }
         internal void BeginTrade(object sender, TradeArgs e)
         {
+            bool requestTrade = false;
             var customer = Customers.FirstOrDefault(c => c.Nickname == e.CustomerName);
             if(customer == null)
             {
@@ -64,14 +66,17 @@ namespace PoeBot.Core.Services
             _LoggerService.Log("Customer arrived " + customer.Nickname);
             if(customer.OrderType == CustomerInfo.OrderTypes.SINGLE)
             {
-                WithrawItemFromStash(customer);
+                requestTrade = WithrawItemFromStash(customer);
             }
             else if (customer.OrderType == CustomerInfo.OrderTypes.MANY)
             {
-                WithrawTradeItemsFromStash(customer);
+                requestTrade = WithrawTradeItemsFromStash(customer);
             }
-            CurrentCustomer = customer;
-            RequestTrade();
+            if (requestTrade)
+            {
+                CurrentCustomer = customer;
+                RequestTrade();
+            }
         }
         internal void CustomerLeft(object sender, TradeArgs e)
         {
@@ -350,7 +355,7 @@ namespace PoeBot.Core.Services
 
             if (CurrentCustomer.Currency.Name == "exalted orb")
             {
-                Win32.ChatCommand($"@{CurrentCustomer.Nickname} exalted orb = {_CurrenciesService.GetCurrencyByName("exalted").ChaosEquivalent}");
+                //Win32.ChatCommand($"@{CurrentCustomer.Nickname} exalted orb = {_CurrenciesService.GetCurrencyByName("exalted").ChaosEquivalent}");
 
                 main_currs.Add(_CurrenciesService.GetCurrencyByName("exalted"));
             }
@@ -366,6 +371,10 @@ namespace PoeBot.Core.Services
 
                 foreach (Currency_ExRate cur in main_currs)
                 {
+                    if (!System.IO.File.Exists(cur.ImageName))
+                    {
+                        continue;
+                    }
                     Win32.MoveTo(0, 0);
 
                     Thread.Sleep(100);
@@ -458,11 +467,18 @@ namespace PoeBot.Core.Services
 
         private void RequestTrade()
         {
+            _InTrade = true;
             TradinngThread = new Thread(() =>
             {
                 if (Win32.GetActiveWindowTitle() != "Path of Exile")
                 {
                     Win32.PoE_MainWindow();
+                }
+
+                if (CurrentCustomer == null)
+                {
+                    Thread.CurrentThread.Abort();
+                    return;
                 }
 
                 // check if im invited
@@ -479,6 +495,7 @@ namespace PoeBot.Core.Services
 
                 if(!PutItems())
                 {
+                    _InTrade = false;
                     // TODO add actio to end trade if cant put items
                     return;
                 }
@@ -494,6 +511,8 @@ namespace PoeBot.Core.Services
                 }
                 // accept trade
                 AccepTrade();
+                _InTrade = false;
+                Thread.CurrentThread.Abort();
             });
             TradinngThread.SetApartmentState(ApartmentState.STA);
             TradinngThread.Start();
@@ -516,7 +535,6 @@ namespace PoeBot.Core.Services
                     return;
                 }
                 SecondAcceptAttempt = true;
-                CheckCurrency();
                 AccepTrade();
             }
         }
@@ -537,6 +555,7 @@ namespace PoeBot.Core.Services
 
         private void SendTradeRequest()
         {
+            if (CurrentCustomer == null) return;
             _LoggerService.Log($"Send trade request with {CurrentCustomer.Nickname}");
             string trade_command = "/tradewith " + CurrentCustomer.Nickname;
             Win32.ChatCommand(trade_command);
@@ -1116,7 +1135,7 @@ namespace PoeBot.Core.Services
                         continue;
                     }
 
-                    Win32.MoveTo(x_inventory + offset * j, y_inventory + 175);
+                    Win32.MoveTo(x_inventory + offset * j,   + 175);
 
                     Thread.Sleep(100);
 
@@ -1182,7 +1201,7 @@ namespace PoeBot.Core.Services
         }
         #endregion
 
-        private void WithrawItemFromStash(CustomerInfo customer)
+        private bool WithrawItemFromStash(CustomerInfo customer)
         {
             if(tradeAttemts == 5)
             {
@@ -1194,7 +1213,7 @@ namespace PoeBot.Core.Services
                 Customers.Remove(customer);
 
                 _LoggerService.Log($"\nTrade end with {customer.Nickname}! stash not found");
-                return;
+                return false;
             }
 
             if (!TakeProduct(customer))
@@ -1204,11 +1223,12 @@ namespace PoeBot.Core.Services
                 Customers.Remove(customer);
 
                 _LoggerService.Log($"\nTrade end with {customer.Nickname}! item not found");
-                return;
+                return false;
                 }
             }
+            return true;
         }
-        private void WithrawTradeItemsFromStash(CustomerInfo customer)
+        private bool WithrawTradeItemsFromStash(CustomerInfo customer)
         {
             #region Many items
 
@@ -1279,6 +1299,7 @@ namespace PoeBot.Core.Services
             //}
 
             #endregion
+            return true;
         }
     }
 }

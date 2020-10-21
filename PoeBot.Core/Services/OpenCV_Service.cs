@@ -211,7 +211,7 @@ namespace PoeBot.Core.Services
                     else
                         break;
                 }
-                result.Save(@"C:\Users\Ruben\Desktop\tests\test" + DateTime.Now.ToShortDateString() + ".png");
+                result.Save(@"C:\Users\Ruben\Desktop\tests\test" + DateTime.Now.ToLongDateString() + ".png");
             }
 
             return res_pos;        
