@@ -186,6 +186,7 @@ namespace PoeBot.Core.Services
                         //Currency
                         begin = log24.IndexOf(" in") - 1;
                         for (int i = 0; i < 50; i++)
+                        
                         {
                             if (log24[begin - i] == ' ')
                             {

@@ -111,5 +111,49 @@ namespace PoeBot.Core.Services
             else
                 return price;
         }
+
+        internal Item GetCurrency(string clip)
+        {
+            if(String.IsNullOrEmpty(clip) || clip == "empty_string")
+            {
+                return null;
+            }
+            Item retItem = new Item();
+            retItem.Name = GetName(clip);
+            retItem.StackSize = GetStackSize(clip);
+            retItem.Price = new Price() { CurrencyType = _CurrenciesService.GetCurrencyByName(retItem.Name) };
+            if (retItem.Price.CurrencyType == null)
+                return null;
+            retItem.Price.Cost = retItem.Price.CurrencyType.ChaosEquivalent * retItem.StackSize;
+            return retItem;
+        }
+
+        public int GetStackSize(string clip)
+        {
+            if (!String.IsNullOrEmpty(clip) && clip != "empty_string")
+            {
+                var lines = clip.Split('\n');
+
+                if (lines.Count() == 1)
+                    return 0;
+
+                foreach(var line in lines)
+                {
+                    if (line.Contains("Stack Size"))
+                    {
+                        string quantity = line.Split(":".ToArray(), StringSplitOptions.RemoveEmptyEntries)[1];
+                        var total = quantity.Split("/".ToArray())[0];
+                        return Convert.ToInt32(total);
+                    }
+                }
+
+            }
+            return 0;
+        }
+
+        public string GetName(string clip)
+        {
+            return CommandsService.GetNameItem_PoE(clip);
+        }
     }
 }

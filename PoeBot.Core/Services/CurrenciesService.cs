@@ -41,6 +41,7 @@ namespace PoeBot.Core.Services
             {
                 return null;
             }
+            name = name.ToLower();
 
             switch (name)
             {
@@ -56,6 +57,9 @@ namespace PoeBot.Core.Services
                     break;
                 case "alch":
                     name = "alchemy";
+                    break;
+                case "jewellers":
+                    name = "jeweller's";
                     break;
 
             }
@@ -80,18 +84,18 @@ namespace PoeBot.Core.Services
             }
             CurrenciesList.Add(new Currency_ExRate("Chaos Orb", 1));
 
-            //foreach (CurrencyDetail cd in ExchangeRatesJson.CurrencyDetails)
-            //{
-            //    var img = "Assets/Currencies/" + cd.Name.ToLower().Replace(" ", "") + ".png";
+            foreach (CurrencyDetail cd in ExchangeRatesJson.CurrencyDetails)
+            {
+                var img = "Assets/Currencies/" + cd.Name.ToLower().Replace(" ", "") + ".png";
 
-            //    if (!File.Exists(img))
-            //    {
-            //        using (WebClient client = new WebClient())
-            //        {
-            //            client.DownloadFile(cd.Icon, img);
-            //        }
-            //    }
-            //}
+                if (!File.Exists(img))
+                {
+                    using (WebClient client = new WebClient())
+                    {
+                        client.DownloadFile(cd.Icon, img);
+                    }
+                }
+            }
 
 
             _LoggerService.Log("Curencies updated!");

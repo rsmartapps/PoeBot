@@ -1,4 +1,5 @@
-﻿using PoeBot.Core.Services;
+﻿using PoeBot.Core;
+using PoeBot.Core.Services;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -61,6 +62,11 @@ namespace PoeBot
         private void ExitClick(object sender, EventArgs e)
         {
             this.Close();
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            Tests.GetCurrencies();
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using PoeBot.Core.Models.Test;
+﻿using PoeBot.Core.Models;
+using PoeBot.Core.Models.Test;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -153,5 +154,13 @@ namespace PoeBot.Core.Services
             return null;
         }
 
+        internal static string GetItemNamePosition(Position position)
+        {
+            Win32.MoveTo(position.Left,position.Top);
+            Thread.Sleep(300);
+            string clip = CtrlC_PoE();
+            Thread.Sleep(200);
+            return GetNameItem_PoE(clip);
+        }
     }
 }

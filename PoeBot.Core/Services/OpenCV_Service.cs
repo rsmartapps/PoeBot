@@ -17,6 +17,32 @@ namespace PoeBot.Core.Services
 
         }
 
+        public static bool Match(Bitmap source, Bitmap template, float treshHold = 0.85f)
+        {
+            Image<Gray, byte> sourceImage = source.ToImage<Gray, byte>(); // Image B
+            Image<Gray, byte> templateImage = template.ToImage<Gray, byte>(); // Image A
+
+            //sourceImage.ToBitmap().Save($@"C:\Users\Ruben\Desktop\tests\PoeTests2\{DateTime.Now.Ticks}.png");
+            //templateImage.ToBitmap().Save($@"C:\Users\Ruben\Desktop\tests\PoeTests2\{DateTime.Now.Ticks}.png");
+            using (Image<Gray, float> result = sourceImage.MatchTemplate(templateImage, Emgu.CV.CvEnum.TemplateMatchingType.CcoeffNormed))
+            {
+                double[] minValues, maxValues;
+                Point[] minLocations, maxLocations;
+
+                result.MinMax(out minValues, out maxValues, out minLocations, out maxLocations);
+                // You can try different values of the threshold. I guess somewhere between 0.75 and 0.95 would be good.
+
+                if (maxValues[0] > treshHold)
+                {
+                    //sourceImage.ToBitmap().Save($@"C:\Users\Ruben\Desktop\tests\PoeTests2\{DateTime.Now.Ticks}.png");
+                    //templateImage.ToBitmap().Save($@"C:\Users\Ruben\Desktop\tests\PoeTests2\{DateTime.Now.Ticks}.png");
+                    //result.ToBitmap().Save($@"C:\Users\Ruben\Desktop\tests\PoeTests2\{DateTime.Now.Ticks}.png");
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public static List<Position> FindObjects(Bitmap source_img, string path_template)
         {
             List<Position> res_pos = new List<Position>();
@@ -52,7 +78,7 @@ namespace PoeBot.Core.Services
                     else
                         break;
                 }
-                result.Save(@"C:\Users\Ruben\Desktop\tests\test" + DateTime.Now.ToShortDateString() + ".png");
+                result.ToBitmap().Save(@"C:\Users\Ruben\Desktop\tests\test\" + DateTime.Now.ToFileTime() + ".png", System.Drawing.Imaging.ImageFormat.Png);
             }
 
             return res_pos;
@@ -60,7 +86,7 @@ namespace PoeBot.Core.Services
 
         public static Position FindObject(Bitmap source_img, string path_template)
         {
-            Position res = new Position();
+            Position res = null;
 
             Image<Bgr, byte> source = source_img.ToImage<Bgr, byte>(); // Image B
             Image<Bgr, byte> template = new Image<Bgr, byte>(path_template); // Image A

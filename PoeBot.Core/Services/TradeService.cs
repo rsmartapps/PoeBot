@@ -51,8 +51,7 @@ namespace PoeBot.Core.Services
         }
         internal void StopAFK(object sender, EventArgs e)
         {
-            Win32.ChatCommand("Hi, are u there?");
-            Win32.DoMouseRightClick();
+            Win32.ChatCommand("/afkoff");
         }
         internal void BeginTrade(object sender, TradeArgs e)
         {
@@ -61,6 +60,11 @@ namespace PoeBot.Core.Services
             if(customer == null)
             {
                 _LoggerService.Log($"Customer {e.CustomerName} not found in my trade list");
+                return;
+            }
+            if (_InTrade)
+            {
+                _LoggerService.Log($"Currently in trade, queue him");
                 return;
             }
             _LoggerService.Log("Customer arrived " + customer.Nickname);
@@ -80,6 +84,11 @@ namespace PoeBot.Core.Services
         }
         internal void CustomerLeft(object sender, TradeArgs e)
         {
+            if (_InTrade)
+            {
+                TradinngThread.Abort();
+                _InTrade = false;
+            }
             _LoggerService.Log("Customer left " + e.CustomerName);
             var customer = Customers.FirstOrDefault(c => c.Nickname == e.CustomerName);
             if(customer != null)
@@ -87,16 +96,19 @@ namespace PoeBot.Core.Services
         }
         internal void TradeCanceled(object sender, TradeArgs e)
         {
+            _LoggerService.Log("Trade canceled " + CurrentCustomer.Nickname);
             if (CurrentCustomer == null)
                 return;
-            _LoggerService.Log("Trade canceled " + CurrentCustomer.Nickname);
+            TradinngThread.Abort();
+            Thread.Sleep(500);
             --tradeAttemts;
             if (tradeAttemts <= 0)
+            {
+                _InTrade = false;
                 EndTrade(CurrentCustomer);
+            }
             else
             {
-                TradinngThread.Abort();
-                Thread.Sleep(500);
                 RequestTrade();
             }
         }
@@ -145,7 +157,7 @@ namespace PoeBot.Core.Services
             }
             else
             {
-                ClearInventory();
+                PutItemBack(customer);
             }
 
         }
@@ -185,7 +197,7 @@ namespace PoeBot.Core.Services
 
                         found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/accespt.png");
 
-                        if (found_pos.IsVisible)
+                        if (found_pos != null &&found_pos.IsVisible)
                         {
                             _LoggerService.Log("I will Accept trade request!");
 
@@ -208,14 +220,13 @@ namespace PoeBot.Core.Services
 
                             Win32.ChatCommand(trade_command);
 
-                            // TODO sacar esto fuera
                             screen_shot = ScreenCapture.CaptureRectangle(455, 285, 475, 210);
 
                             if (!CurrentCustomer.IsInArea)
                                 return false;
 
                             found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/trade_waiting.png");
-                            if (found_pos.IsVisible)
+                            if (found_pos != null && found_pos.IsVisible)
                             {
                                 Win32.MoveTo(455 + found_pos.Left + found_pos.Width / 2, 285 + found_pos.Top + found_pos.Height / 2);
 
@@ -228,7 +239,7 @@ namespace PoeBot.Core.Services
                                 _LoggerService.Log("Check trade window");
                                 screen_shot = ScreenCapture.CaptureRectangle(330, 15, 235, 130);
                                 found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/trade_window_title.png");
-                                if (found_pos.IsVisible)
+                                if (found_pos != null && found_pos.IsVisible)
                                 {
                                     _LoggerService.Log("I am in trade!");
                                     screen_shot.Dispose();
@@ -239,11 +250,10 @@ namespace PoeBot.Core.Services
                     }
                     else
                     {
-                        // TODO Sacar esto fuera
                         _LoggerService.Log("Check trade window");
                         screen_shot = ScreenCapture.CaptureRectangle(330, 15, 235, 130);
                         found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/trade_window_title.png");
-                        if (found_pos.IsVisible)
+                        if (found_pos != null && found_pos != null && found_pos.IsVisible)
                         {
                             screen_shot.Dispose();
                             _LoggerService.Log("I am in trade!");
@@ -322,9 +332,67 @@ namespace PoeBot.Core.Services
 
             return false;
         }
+        int x_trade = 221;
+        int y_trade = 145;
+        int tab_height = 38;
+        int tab_width = 38;
+        private bool CheckTradeCurrency()
+        {
+            if (Win32.GetActiveWindowTitle() != "Path of Exile")
+            {
+                Win32.PoE_MainWindow();
+            }
 
+            Item currency;
+            List<Item> lCurrency = new List<Item>();
+            double totalChaos = 0;
+
+            Bitmap cell;
+            Bitmap template = new Bitmap($"Assets/{Properties.Settings.Default.UI_Fragments}/empty_cel2.png");
+
+            Win32.MoveTo(0, 0);
+            Thread.Sleep(100);
+
+            for (int i = 0; i < 12; i++)
+            {
+                for (int j = 0; j < 5; j++)
+                {
+                    int xInit = x_trade + (tab_width * i) - i / 2;
+                    int yInit = y_trade + (tab_height * j) - j / 2;
+                    cell = ScreenCapture.CaptureRectangle(xInit,yInit, tab_width, tab_height);
+                    if (!OpenCV_Service.Match(cell, template, 0.80f))
+                    {
+                        Win32.MoveTo(xInit+(tab_width/2), yInit+(tab_height/2));
+                        Thread.Sleep(100);
+
+                        string clip = CommandsService.CtrlC_PoE();
+                        currency = _itemmService.GetCurrency(clip);
+
+                        if (currency != null)
+                        {
+                            lCurrency.Add(currency);
+                            totalChaos += currency.Price.Cost;
+                        }
+
+                    }
+                }
+            }
+
+            // validate price
+            if(CurrentCustomer != null)
+            {
+                // Check value
+
+                if (CurrentCustomer.Chaos_Price < totalChaos)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
         private bool CheckCurrency()
         {
+            // TODO create new check currency which check currencys with control + c and checks name and stack size
             List<Position> found_positions = null;
 
             List<Currency_ExRate> main_currs = new List<Currency_ExRate>();
@@ -390,16 +458,16 @@ namespace PoeBot.Core.Services
                         Thread.Sleep(100);
 
                         string ctrlc = CommandsService.CtrlC_PoE();
-
+                        // TODO fix this currency stack count
                         var curbyname = _CurrenciesService.GetCurrencyByName(_itemmService.GetNameItem_PoE(ctrlc));
 
                         if (curbyname == null)
 
-                            price += CommandsService.GetSizeInStack(CommandsService.CtrlC_PoE()) * cur.ChaosEquivalent;
+                            price += CommandsService.GetSizeInStack(ctrlc) * cur.ChaosEquivalent;
 
                         else
 
-                            price += CommandsService.GetSizeInStack(CommandsService.CtrlC_PoE()) * curbyname.ChaosEquivalent;
+                            price += CommandsService.GetSizeInStack(ctrlc) * curbyname.ChaosEquivalent;
 
 
                         screen_shot.Dispose();
@@ -497,6 +565,9 @@ namespace PoeBot.Core.Services
                 {
                     _InTrade = false;
                     // TODO add actio to end trade if cant put items
+                    Win32.ChatCommand($"@{CurrentCustomer.Nickname} Item gone, sorry");
+                    KickFormParty(CurrentCustomer);
+                    Thread.CurrentThread.Abort();
                     return;
                 }
 
@@ -504,7 +575,7 @@ namespace PoeBot.Core.Services
                 bool IsNotPaidYet = true;
                 while (IsNotPaidYet)
                 {
-                    if (CheckCurrency())
+                    if (CheckTradeCurrency())
                     {
                         IsNotPaidYet = false;
                     }
@@ -523,7 +594,7 @@ namespace PoeBot.Core.Services
             _LoggerService.Log("Check trade window");
             Bitmap screen_shot = ScreenCapture.CaptureRectangle(330, 15, 235, 130);
             Position found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/trade_window_title.png");
-            if (found_pos.IsVisible)
+            if(found_pos != null &&found_pos.IsVisible)
             {
                 screen_shot.Dispose();
                 _LoggerService.Log("I am in trade!");
@@ -567,7 +638,7 @@ namespace PoeBot.Core.Services
 
             Position found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/accespt.png");
 
-            if (found_pos.IsVisible)
+            if(found_pos != null &&found_pos.IsVisible)
             {
                 _LoggerService.Log("I will Accept trade request!");
 
@@ -608,7 +679,7 @@ namespace PoeBot.Core.Services
                 screen_shot = ScreenCapture.CaptureScreen();
                 found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/stashtitle.png");
 
-                if (found_pos.IsVisible)
+                if(found_pos != null &&found_pos.IsVisible)
                 {
                     Win32.MoveTo(found_pos.Left + found_pos.Width / 2, found_pos.Top + found_pos.Height);
 
@@ -628,7 +699,7 @@ namespace PoeBot.Core.Services
 
                         var pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/open_stash.png");
 
-                        if (pos.IsVisible)
+                        if (pos != null && pos.IsVisible)
                         {
                             screen_shot.Dispose();
 
@@ -663,14 +734,14 @@ namespace PoeBot.Core.Services
 
                 found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/notactive_" + name_tab + ".jpg");
 
-                if (found_pos.IsVisible)
+                if(found_pos != null &&found_pos.IsVisible)
                 {
                     break;
                 }
                 else
                 {
                     found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/active_" + name_tab + ".jpg");
-                    if (found_pos.IsVisible)
+                    if(found_pos != null &&found_pos.IsVisible)
                     {
                         screen_shot.Dispose();
 
@@ -682,7 +753,7 @@ namespace PoeBot.Core.Services
                 Thread.Sleep(500);
             }
 
-            if (found_pos.IsVisible)
+            if(found_pos != null &&found_pos.IsVisible)
             {
                 Win32.MoveTo(10 + found_pos.Left + found_pos.Width / 2, 90 + found_pos.Top + found_pos.Height / 2);
 
@@ -786,8 +857,8 @@ namespace PoeBot.Core.Services
         {
             Position found_pos = null;
 
-            _LoggerService.Log($"Search {recycle_tab}...");
-
+            _LoggerService.Log($"Clear inventory in stash {recycle_tab}...");
+            
             Thread.Sleep(500);
 
             for (int count_try = 0; count_try < 16; count_try++)
@@ -798,14 +869,14 @@ namespace PoeBot.Core.Services
 
                 Thread.Sleep(1000);
 
-                if (found_pos.IsVisible)
+                if(found_pos != null &&found_pos.IsVisible)
                 {
                     break;
                 }
                 else
                 {
                     found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/active_" + recycle_tab + ".png");
-                    if (found_pos.IsVisible)
+                    if(found_pos != null &&found_pos.IsVisible)
                     {
                         screen_shot.Dispose();
 
@@ -819,7 +890,7 @@ namespace PoeBot.Core.Services
 
 
 
-            if (found_pos.IsVisible)
+            if(found_pos != null &&found_pos.IsVisible)
             {
                 Win32.MoveTo(10 + found_pos.Left + found_pos.Width / 2, 90 + found_pos.Top + found_pos.Height / 2);
 
@@ -871,6 +942,8 @@ namespace PoeBot.Core.Services
         }
         private bool TakeProduct(CustomerInfo customer)
         {
+
+            _LoggerService.Log($"Take products for {customer?.Nickname}");
             Bitmap screen_shot = null;
             Position found_pos = null;
 
@@ -890,12 +963,12 @@ namespace PoeBot.Core.Services
 
                 found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/notactive_trade_tab.jpg");
 
-                if (found_pos.IsVisible)
+                if(found_pos != null &&found_pos.IsVisible)
                     break;
                 else
                 {
                     found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/active_trade_tab.jpg");
-                    if (found_pos.IsVisible)
+                    if(found_pos != null &&found_pos.IsVisible)
                     {
                         break;
                     }
@@ -908,7 +981,7 @@ namespace PoeBot.Core.Services
 
             screen_shot.Dispose();
 
-            if (found_pos.IsVisible)
+            if(found_pos != null &&found_pos.IsVisible)
             {
                 Win32.MoveTo(10 + found_pos.Left + found_pos.Width / 2, 90 + found_pos.Top + found_pos.Height / 2);
 
@@ -973,12 +1046,12 @@ namespace PoeBot.Core.Services
 
                 found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/notactive_" + name_tab + ".jpg");
 
-                if (found_pos.IsVisible)
+                if (found_pos != null && found_pos.IsVisible)
                     break;
                 else
                 {
                     found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/active_" + name_tab + ".jpg");
-                    if (found_pos.IsVisible)
+                    if (found_pos != null && found_pos.IsVisible)
                     {
                         screen_shot.Dispose();
 
@@ -990,7 +1063,7 @@ namespace PoeBot.Core.Services
                 Thread.Sleep(500);
             }
 
-            if (found_pos.IsVisible)
+            if(found_pos != null &&found_pos.IsVisible)
             {
                 Win32.MoveTo(10 + found_pos.Left + found_pos.Width / 2, 90 + found_pos.Top + found_pos.Height / 2);
 
@@ -1199,10 +1272,109 @@ namespace PoeBot.Core.Services
 
             return false;
         }
+        private void PutItemBack(CustomerInfo customer)
+        {
+            bool storedBack = false;
+            _LoggerService.Log($"Put item back because of trade failed with customer {customer.Nickname} trading {customer.Product}");
+            if(customer != null)
+            {
+                if (!OpenStash())
+                {
+                    throw new Exception("Stash not found");
+                }
+                if (!OpenTab(customer.Stash_Tab))
+                {
+                    throw new Exception("Tab not found");
+                }
+                Position itemPosition = SearchItemInventory(customer.Product);
+                if(itemPosition == null)
+                {
+                    throw new Exception("Item not in inventory");
+                }
+                Win32.MoveTo(itemPosition.Left, itemPosition.Top);
+                Thread.Sleep(300);
+                string posItem = CommandsService.GetItemNamePosition(new Position { Left = Left_Stash64+customer.Left,Top = Top_Stash64+customer.Top });
+                if(String.IsNullOrWhiteSpace(posItem))
+                {
+                    Win32.DoMouseClick();
+                    Thread.Sleep(300);
+                    Win32.MoveTo(Left_Stash64 + customer.Left, Top_Stash64 + customer.Top);
+                    Thread.Sleep(300);
+                    Win32.DoMouseClick();
+                    posItem = CommandsService.GetItemNamePosition(new Position { Left = Left_Stash64 + customer.Left, Top = Top_Stash64 + customer.Top });
+                    if(posItem != customer.Product)
+                    {
+                        storedBack = true;
+                    }
+                }
+                else
+                {
+                    storedBack = true;
+                }
+
+                if (storedBack)
+                {
+                    ClearInventory();
+                }
+            }
+        }
+
+        private Position SearchItemInventory(string item_PoE_Info)
+        {
+            throw new NotImplementedException();
+        }
+
+        private bool OpenTab(string stash_tab)
+        {
+
+            Position found_pos = null;
+
+            _LoggerService.Log($"Search {stash_tab} trade tab...");
+
+
+            for (int count_try = 0; count_try < 16; count_try++)
+            {
+                var screen_shot = ScreenCapture.CaptureRectangle(10, 90, 450, 30);
+
+                found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/notactive_" + stash_tab + ".jpg");
+
+                if (found_pos != null && found_pos.IsVisible)
+                {
+                    break;
+                }
+                else
+                {
+                    found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/active_" + stash_tab + ".jpg");
+                    if (found_pos != null && found_pos.IsVisible)
+                    {
+                        screen_shot.Dispose();
+
+                        break;
+                    }
+                }
+                screen_shot.Dispose();
+
+                Thread.Sleep(500);
+            }
+
+            if(found_pos != null && found_pos.IsVisible)
+            {
+                Win32.MoveTo(10 + found_pos.Left + found_pos.Width / 2, 90 + found_pos.Top + found_pos.Height / 2);
+
+                Thread.Sleep(200);
+
+                Win32.DoMouseClick();
+
+                Thread.Sleep(250);
+                return true;
+            }
+            return false;
+        }
         #endregion
 
         private bool WithrawItemFromStash(CustomerInfo customer)
         {
+            _LoggerService.Log($"Run WithrawItemFromStash for {customer?.Nickname}");
             if(tradeAttemts == 5)
             {
 
