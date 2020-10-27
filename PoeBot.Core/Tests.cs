@@ -12,6 +12,25 @@ namespace PoeBot.Core
 {
     public class Tests
     {
+        public static void FindAcceptIcon()
+        {
+            try
+            {
+                Bitmap template = new Bitmap("Assets/UI_Fragments_free/accept_tradewindow.png"); // Image A
+
+                // Load image
+                Bitmap screen = new Bitmap($"Assets/UI_Fragments_free/Trade-Test2.png");
+                var ticks = DateTime.Now.Ticks;
+                if (!OpenCV_Service.Match(screen, template, 0.80f))
+                {
+                    screen.Save($@"C:\Users\Ruben\Desktop\tests\PoeTests\{ticks}.png");
+                }
+            }
+            catch (Exception ex)
+            {
+
+            }
+        }
         public static void GetCurrencies()
         {
             try
@@ -42,6 +61,13 @@ namespace PoeBot.Core
             }
         }
 
+        public static void TradeisGreen()
+        {
+            Bitmap src = new Bitmap("Assets/UI_Fragments_free/trade_test_ok.jpg");
+            Bgr low = new Bgr(12,40,0);
+            Bgr high = new Bgr(50,70,41);
+            OpenCV_Service.InColorRange(src, low, high);
+        }
         private static Bitmap CropImage(Bitmap src, Rectangle cropRect)
         {
             Bitmap target = new Bitmap(cropRect.Width, cropRect.Height);

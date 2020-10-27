@@ -81,7 +81,7 @@ namespace PoeBot.Core.Models
     public partial class ReceiveSparkLine
     {
         [JsonProperty("data")]
-        public double[] Data { get; set; }
+        public double?[] Data { get; set; }
 
         [JsonProperty("totalChange")]
         public double TotalChange { get; set; }

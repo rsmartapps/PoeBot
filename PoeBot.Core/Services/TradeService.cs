@@ -1,4 +1,5 @@
-﻿using PoeBot.Core.Models;
+﻿using Emgu.CV.Structure;
+using PoeBot.Core.Models;
 using PoeBot.Core.Models.Test;
 using System;
 using System.Collections.Generic;
@@ -118,7 +119,7 @@ namespace PoeBot.Core.Services
             {
                 _LoggerService.Log("Trade accepted " + CurrentCustomer.Nickname);
 
-                EndTrade(CurrentCustomer);
+                EndTrade(CurrentCustomer,true);
             }
         }
         #endregion
@@ -157,9 +158,14 @@ namespace PoeBot.Core.Services
             }
             else
             {
-                PutItemBack(customer);
-            }
+                if (succeed)
+                {
 
+                }
+                else
+                    PutItemBack(customer);
+            }
+            _InTrade = false;
         }
 
         private bool CheckArea()
@@ -328,7 +334,7 @@ namespace PoeBot.Core.Services
             }
             Win32.SendKeyInPoE("{ESC}");
 
-            Win32.ChatCommand("@" + CurrentCustomer.Nickname + " i sold it, sry");
+            Win32.ChatCommand("@" + CurrentCustomer.Nickname + " I sold it, sry");
 
             return false;
         }
@@ -575,39 +581,42 @@ namespace PoeBot.Core.Services
                 bool IsNotPaidYet = true;
                 while (IsNotPaidYet)
                 {
-                    if (CheckTradeCurrency())
-                    {
-                        IsNotPaidYet = false;
-                    }
+                    IsNotPaidYet = !CheckTradeCurrency();
                 }
                 // accept trade
-                AccepTrade();
-                _InTrade = false;
+                while (!AccepTrade())
+                {
+                    Thread.Sleep(100);
+                }
                 Thread.CurrentThread.Abort();
             });
             TradinngThread.SetApartmentState(ApartmentState.STA);
             TradinngThread.Start();
         }
-        bool SecondAcceptAttempt = false;
-        private void AccepTrade()
+
+        private void MoveMouseOverBoxes()
         {
-            _LoggerService.Log("Check trade window");
-            Bitmap screen_shot = ScreenCapture.CaptureRectangle(330, 15, 235, 130);
-            Position found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/trade_window_title.png");
-            if(found_pos != null &&found_pos.IsVisible)
+            for (int i = 0; i < 12; i++)
             {
-                screen_shot.Dispose();
-                _LoggerService.Log("I am in trade!");
-            }
-            else
-            {
-                if (SecondAcceptAttempt)
+                for (int j = 0; j < 5; j++)
                 {
-                    return;
+                    int xInit = x_trade + (tab_width * i) - i / 2;
+                    int yInit = y_trade + (tab_height * j) - j / 2;
+                    Win32.MoveTo(xInit + (tab_width / 2), yInit + (tab_height / 2));
+                    Thread.Sleep(100);
                 }
-                SecondAcceptAttempt = true;
-                AccepTrade();
             }
+
+        }
+
+        private bool AccepTrade()
+        {
+            MoveMouseOverBoxes();
+            _LoggerService.Log("Check trade window");
+                Win32.MoveTo(280, 590);
+                Thread.Sleep(100);
+                Win32.DoMouseClick();
+            return IsTradeAccepted();
         }
 
         private bool IsTradeStarted()
@@ -1336,7 +1345,7 @@ namespace PoeBot.Core.Services
             {
                 var screen_shot = ScreenCapture.CaptureRectangle(10, 90, 450, 30);
 
-                found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/notactive_" + stash_tab + ".jpg");
+                found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/notactive_{stash_tab}.jpg");
 
                 if (found_pos != null && found_pos.IsVisible)
                 {
@@ -1344,7 +1353,7 @@ namespace PoeBot.Core.Services
                 }
                 else
                 {
-                    found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/active_" + stash_tab + ".jpg");
+                    found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/active_trade_" + stash_tab + ".jpg");
                     if (found_pos != null && found_pos.IsVisible)
                     {
                         screen_shot.Dispose();
@@ -1472,6 +1481,14 @@ namespace PoeBot.Core.Services
 
             #endregion
             return true;
+        }
+
+        private bool IsTradeAccepted()
+        {
+            Bitmap src = ScreenCapture.CaptureScreen();
+            Bgr low = new Bgr(12, 40, 0);
+            Bgr high = new Bgr(50, 70, 41);
+            return OpenCV_Service.InColorRange(src, low, high);
         }
     }
 }

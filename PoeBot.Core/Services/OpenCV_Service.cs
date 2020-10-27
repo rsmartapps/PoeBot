@@ -242,5 +242,22 @@ namespace PoeBot.Core.Services
 
             return res_pos;        
         }
+
+        public static bool InColorRange(Bitmap source,Bgr low,Bgr high)
+        {
+            var img = source.ToImage<Bgr, byte>();
+            img.Save($@"C:\Users\Ruben\Desktop\tests\PoeTests2\{DateTime.Now.Ticks}.png");
+            img._SmoothGaussian(5);
+
+            using (Image<Gray,byte> mask = img.InRange(low, high).Not())
+            {
+                double[] minValues, maxValues;
+                Point[] minLocs, maxLocs;
+                mask.MinMax(out minValues, out maxValues, out minLocs, out maxLocs);
+                mask.Save($@"C:\Users\Ruben\Desktop\tests\PoeTests2\{DateTime.Now.Ticks}.png");
+                return maxValues[0] > 200;
+            }
+            return false;
+        }
     }
 }
