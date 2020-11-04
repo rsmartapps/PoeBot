@@ -61,6 +61,12 @@ namespace PoeBot.Core
             }
         }
 
+        public static void NameTab()
+        {
+            Bitmap src = new Bitmap("Assets/UI_Fragments_free/Trade-Test3.png");
+            OpenCV_Service.ContainsText(src, "sese",120);
+        }
+
         public static void TradeisGreen()
         {
             Bitmap src = new Bitmap("Assets/UI_Fragments_free/trade_test_ok.jpg");

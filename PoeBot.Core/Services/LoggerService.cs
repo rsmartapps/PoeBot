@@ -19,6 +19,10 @@ namespace PoeBot.Core.Services
             {
                 LOGS_PATH = log_path;
             }
+            if (!File.Exists(LOGS_PATH))
+            {
+                Directory.CreateDirectory(LOGS_PATH);
+            }
 
             fileStream = new FileStream(LOGS_PATH, FileMode.OpenOrCreate);
             writer = new StreamWriter(fileStream);
