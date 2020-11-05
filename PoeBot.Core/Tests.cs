@@ -60,6 +60,9 @@ namespace PoeBot.Core
 
             }
         }
+        public static void Test()
+        {
+        }
 
         public static void NameTab()
         {

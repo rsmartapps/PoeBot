@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -197,6 +198,18 @@ namespace PoeBot.Core.Services
         #region Win32
 
         [DllImport("user32.dll")]
+        private static extern bool GetWindowRect(IntPtr hWnd, RECT rect);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public long left;
+            public long top;
+            public long right;
+            public long bottom;
+        }
+
+        [DllImport("user32.dll")]
         internal static extern bool SetClipboardData(uint uFormat, IntPtr data);
 
         [DllImport("User32.dll", SetLastError = true)]
@@ -265,5 +278,20 @@ namespace PoeBot.Core.Services
                 SendKeys.SendWait(c.ToString());
             }
         }
+
+        public static Rectangle GetWindowRectangle()
+        {
+            Rectangle rect = new Rectangle();
+
+            var proc = PoE_Process;
+            if (proc != null)
+            {
+                RECT rectangle = new RECT();
+                var handle = proc.MainWindowHandle;
+                GetWindowRect(handle, rectangle);
+            }
+            return rect;
+        }
+
     }
 }

@@ -34,6 +34,7 @@ namespace PoeBot.Core.Services
 
             return ss.Replace("\r", "");
         }
+
         public static double GetSizeInStack(string ctrlC_PoE)
         {
             if (!String.IsNullOrEmpty(ctrlC_PoE) && ctrlC_PoE != "empty_string")

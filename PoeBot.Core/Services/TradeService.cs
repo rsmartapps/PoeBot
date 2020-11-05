@@ -21,6 +21,7 @@ namespace PoeBot.Core.Services
         private List<CustomerInfo> Customers;
         private List<CustomerInfo> CompletedTrades;
         private CustomerInfo CurrentCustomer;
+        private StashHelper _StashHelper;
 
         private readonly int Top_Stash64 = 135;
         private readonly int Left_Stash64 = 25;
@@ -152,7 +153,7 @@ namespace PoeBot.Core.Services
 
             Customers.Remove(customer);
 
-            if (!OpenStash())
+            if (!_StashHelper.OpenStash())
             {
                 _LoggerService.Log("Stash not found. I cant clean inventory after trade.");
             }
@@ -669,199 +670,6 @@ namespace PoeBot.Core.Services
         #endregion
 
         #region Inventory actions
-        public bool OpenStash()
-        {
-            Bitmap screen_shot = null;
-            Position found_pos = null;
-
-            if (Win32.GetActiveWindowTitle() != "Path of Exile")
-            {
-                Win32.PoE_MainWindow();
-            }
-
-            //find stash poition
-
-            _LoggerService.Log("Search stash in location...");
-
-            for (int search_pos = 0; search_pos < 20; search_pos++)
-            {
-                screen_shot = ScreenCapture.CaptureScreen();
-                found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/stashtitle.png");
-
-                if(found_pos != null &&found_pos.IsVisible)
-                {
-                    Win32.MoveTo(found_pos.Left + found_pos.Width / 2, found_pos.Top + found_pos.Height);
-
-                    Thread.Sleep(100);
-
-                    Win32.DoMouseClick();
-
-                    Thread.Sleep(100);
-
-                    Win32.MoveTo(screen_shot.Width / 2, screen_shot.Height / 2);
-
-                    var timer = DateTime.Now + new TimeSpan(0, 0, 5);
-
-                    while (true)
-                    {
-                        screen_shot = ScreenCapture.CaptureRectangle(140, 32, 195, 45);
-
-                        var pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/open_stash.png");
-
-                        if (pos != null && pos.IsVisible)
-                        {
-                            screen_shot.Dispose();
-
-                            return true;
-                        }
-
-                        if (timer < DateTime.Now)
-                            break;
-
-                        Thread.Sleep(500);
-                    }
-                }
-
-                screen_shot.Dispose();
-
-                Thread.Sleep(500);
-            }
-
-            _LoggerService.Log("Stash is not found");
-
-            return false;
-        }
-        public void ScanTab(string name_tab = "trade_tab")
-        {
-            Position found_pos = null;
-
-            _LoggerService.Log($"Search {name_tab} trade tab...");
-
-            for (int count_try = 0; count_try < 16; count_try++)
-            {
-                var screen_shot = ScreenCapture.CaptureRectangle(10, 90, 450, 30);
-
-                found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/notactive_" + name_tab + ".jpg");
-
-                if(found_pos != null &&found_pos.IsVisible)
-                {
-                    break;
-                }
-                else
-                {
-                    found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/active_" + name_tab + ".jpg");
-                    if(found_pos != null &&found_pos.IsVisible)
-                    {
-                        screen_shot.Dispose();
-
-                        break;
-                    }
-                }
-                screen_shot.Dispose();
-
-                Thread.Sleep(500);
-            }
-
-            if(found_pos != null &&found_pos.IsVisible)
-            {
-                Win32.MoveTo(10 + found_pos.Left + found_pos.Width / 2, 90 + found_pos.Top + found_pos.Height / 2);
-
-                Thread.Sleep(200);
-
-                Win32.DoMouseClick();
-
-                Thread.Sleep(250);
-
-                List<Cell> skip = new List<Cell>();
-
-                for (int i = 0; i < 12; i++)
-                {
-                    for (int j = 0; j < 12; j++)
-                    {
-                        if (skip.Find(cel => cel.Left == i && cel.Top == j) != null)
-                        {
-                            continue;
-                        }
-
-                        Win32.MoveTo(0, 0);
-
-                        Thread.Sleep(100);
-
-                        Win32.MoveTo(Left_Stash64 + 38 * i, Top_Stash64 + 38 * j);
-
-                        #region OpenCv
-
-                        var screen_shot = ScreenCapture.CaptureRectangle(Left_Stash64 - 30 + 38 * i, Top_Stash64 - 30 + 38 * j, 60, 60);
-
-                        Position pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/empty_cel.png", 0.5);
-
-                        if (!pos.IsVisible)
-                        {
-                            #region Good code
-
-                            string item_info = CommandsService.CtrlC_PoE();
-
-                            if (item_info != "empty_string")
-                            {
-                                var item = new Item
-                                {
-                                    Price = _itemmService.GetPrice_PoE(item_info),
-                                    Name = CommandsService.GetNameItem_PoE_Pro(item_info),
-                                    StackSize = CommandsService.GetStackSize_PoE_Pro(item_info)
-                                };
-
-                                item.Places.Add(new Cell(i, j));
-
-                                if (item.StackSize == 1)
-                                {
-                                    item.SizeInStack = 1;
-                                }
-                                else
-                                {
-                                    item.SizeInStack = (int)CommandsService.GetSizeInStack(item_info);
-                                }
-
-                                if (item.Name.Contains("Resonator"))
-                                {
-                                    if (item.Name.Contains("Potent"))
-                                    {
-                                        item.Places.Add(new Cell(i, j + 1));
-                                        skip.Add(new Cell(i, j + 1));
-
-                                    }
-
-                                    if (item.Name.Contains("Prime") || item.Name.Contains("Powerful"))
-                                    {
-                                        item.Places.Add(new Cell(i, j + 1));
-                                        skip.Add(new Cell(i, j + 1));
-                                        item.Places.Add(new Cell(i + 1, j + 1));
-                                        skip.Add(new Cell(i + 1, j + 1));
-                                        item.Places.Add(new Cell(i + 1, j));
-                                        skip.Add(new Cell(i + 1, j));
-                                    }
-                                }
-
-                                _Tabs.AddItem(item);
-
-                                #endregion
-                            }
-
-                            screen_shot.Dispose();
-
-                            #endregion
-                        }
-                    }
-                }
-
-                Win32.SendKeyInPoE("{ESC}");
-
-                _LoggerService.Log("Scan is end!");
-            }
-            else
-            {
-                throw new Exception($"{name_tab} not found.");
-            }
-        }
         public void ClearInventory(string recycle_tab = "recycle_tab")
         {
             Position found_pos = null;
@@ -1287,98 +1095,56 @@ namespace PoeBot.Core.Services
             _LoggerService.Log($"Put item back because of trade failed with customer {customer.Nickname} trading {customer.Product}");
             if(customer != null)
             {
-                if (!OpenStash())
+                if (!_StashHelper.OpenStash())
                 {
                     throw new Exception("Stash not found");
                 }
-                if (!OpenTab(customer.Stash_Tab))
+                if (!_StashHelper.OpenTab(customer.Stash_Tab))
                 {
                     throw new Exception("Tab not found");
                 }
-                Position itemPosition = SearchItemInventory(customer.Product);
-                if(itemPosition == null)
-                {
-                    throw new Exception("Item not in inventory");
-                }
-                Win32.MoveTo(itemPosition.Left, itemPosition.Top);
-                Thread.Sleep(300);
-                string posItem = CommandsService.GetItemNamePosition(new Position { Left = Left_Stash64+customer.Left,Top = Top_Stash64+customer.Top });
-                if(String.IsNullOrWhiteSpace(posItem))
-                {
-                    Win32.DoMouseClick();
-                    Thread.Sleep(300);
-                    Win32.MoveTo(Left_Stash64 + customer.Left, Top_Stash64 + customer.Top);
-                    Thread.Sleep(300);
-                    Win32.DoMouseClick();
-                    posItem = CommandsService.GetItemNamePosition(new Position { Left = Left_Stash64 + customer.Left, Top = Top_Stash64 + customer.Top });
-                    if(posItem != customer.Product)
-                    {
-                        storedBack = true;
-                    }
-                }
-                else
-                {
-                    storedBack = true;
-                }
-
-                if (storedBack)
+                if(!MoveItemBack(customer.Product))
                 {
                     ClearInventory();
                 }
+                Win32.SendKeyInPoE("ESC");
             }
         }
-
-        private Position SearchItemInventory(string item_PoE_Info)
+        private bool MoveItemBack(string product)
         {
-            throw new NotImplementedException();
-        }
-
-        private bool OpenTab(string stash_tab)
-        {
-
-            Position found_pos = null;
-
-            _LoggerService.Log($"Search {stash_tab} trade tab...");
-
-
-            for (int count_try = 0; count_try < 16; count_try++)
+            // TODO Find intem in inventory
+            Point zeroInventory = Utils.ZeroInventory();
+            int y_point;
+            int x_point;
+            for (int i=0;i<12;i++)
             {
-                var screen_shot = ScreenCapture.CaptureRectangle(10, 90, 450, 30);
-
-                found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/notactive_{stash_tab}.jpg");
-
-                if (found_pos != null && found_pos.IsVisible)
+                x_point = zeroInventory.X + (Utils.WidthHeightTab() * i);
+                for (int j = 0;j<5;j++)
                 {
-                    break;
+                    y_point = zeroInventory.Y + (Utils.WidthHeightTab() * j);
+
                 }
-                else
-                {
-                    found_pos = OpenCV_Service.FindObject(screen_shot, $"Assets/{Properties.Settings.Default.UI_Fragments}/active_trade_" + stash_tab + ".jpg");
-                    if (found_pos != null && found_pos.IsVisible)
-                    {
-                        screen_shot.Dispose();
-
-                        break;
-                    }
-                }
-                screen_shot.Dispose();
-
-                Thread.Sleep(500);
             }
+            // TODO Calculate height and put it back
 
-            if(found_pos != null && found_pos.IsVisible)
-            {
-                Win32.MoveTo(10 + found_pos.Left + found_pos.Width / 2, 90 + found_pos.Top + found_pos.Height / 2);
-
-                Thread.Sleep(200);
-
-                Win32.DoMouseClick();
-
-                Thread.Sleep(250);
-                return true;
-            }
+            //string posItem = CommandsService.GetItemNamePosition(new Position { Left = Left_Stash64 + customer.Left, Top = Top_Stash64 + customer.Top });
+            //if (String.IsNullOrWhiteSpace(posItem))
+            //{
+            //    Win32.DoMouseClick();
+            //    Thread.Sleep(300);
+            //    Win32.MoveTo(Left_Stash64 + customer.Left, Top_Stash64 + customer.Top);
+            //    Thread.Sleep(300);
+            //    Win32.DoMouseClick();
+            //    posItem = CommandsService.GetItemNamePosition(new Position { Left = Left_Stash64 + customer.Left, Top = Top_Stash64 + customer.Top });
+            //    if (posItem != customer.Product)
+            //    {
+            //        storedBack = true;
+            //    }
+            //}
             return false;
         }
+
+        
         #endregion
 
         private bool WithrawItemFromStash(CustomerInfo customer)
@@ -1387,7 +1153,7 @@ namespace PoeBot.Core.Services
             if(tradeAttemts == 5)
             {
 
-            if (!OpenStash())
+            if (!_StashHelper.OpenStash())
             {
                 Win32.ChatCommand($"@{customer.Nickname} item gone sorry");
                 KickFormParty(customer);

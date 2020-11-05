@@ -73,7 +73,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BotEgine.cs" />
+    <Compile Include="FarmBot.cs" />
+    <Compile Include="FollowBot.cs" />
+    <Compile Include="Models\GameContext.cs" />
+    <Compile Include="Services\StashHelper.cs" />
+    <Compile Include="TradeBot.cs" />
     <Compile Include="Models\Constants.cs" />
     <Compile Include="Models\Currencies.cs" />
     <Compile Include="Models\CurrenciesJson.cs" />
@@ -619,10 +623,14 @@
     <Content Include="Assets\UI_Fragments_free\Trade-Test1.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="Assets\UI_Fragments_free\Test-TradeBigScreen.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="Assets\UI_Fragments_free\Trade-Test2.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="Assets\UI_Fragments_free\Trade-Test3.png">
+    <Content Include="Assets\UI_Fragments_free\TestCurrencyTab.png" />
+    <Content Include="Assets\UI_Fragments_free\TestTabFullItems.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="Assets\UI_Fragments_free\trade_test_ok.jpg">

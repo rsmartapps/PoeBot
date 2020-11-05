@@ -1,9 +1,11 @@
-﻿using System;
+﻿using PoeBot.Core.Services;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static PoeBot.Core.Services.Win32;
 
 namespace PoeBot.Core
 {
@@ -42,6 +44,44 @@ namespace PoeBot.Core
                                  GraphicsUnit.Pixel);
             }
             return target;
+        }
+
+        private static int DefaultHeight = 1080;
+        private static int DefaultWidth = 1920;
+        public static Rectangle StashRectangle = new Rectangle(20, 125, 630, 630);
+        public static Rectangle TradeRectangle = new Rectangle(310, 205, 630, 265);
+        public static Rectangle InventoryRectangle = new Rectangle(1275, 585, 630, 265);
+
+        public static Point ZeroStash()
+        {
+            return ZeroPoint(StashRectangle.X, StashRectangle.Y);
+        }
+        public static Point ZeroInventory()
+        {
+            return ZeroPoint(InventoryRectangle.X, InventoryRectangle.Y);
+        }
+        public static Point ZeroTrade()
+        {
+            return ZeroPoint(TradeRectangle.X, TradeRectangle.Y);
+        }
+        public static int WidthHeightTab()
+        {
+            return 38;
+        }
+        private static Point ZeroPoint(int X,int Y)
+        {
+            Point p = new Point();
+            p.X = 200;
+            p.Y = 200;
+            var rect = Win32.GetWindowRectangle();
+            if (rect.Width == DefaultWidth && rect.Height == DefaultHeight)
+                return p;
+            else
+            {
+                p.X = (p.X * rect.Width) / DefaultWidth;
+                p.Y = (p.Y * rect.Height) / DefaultHeight;
+                return p;
+            }
         }
     }
 }

@@ -4,13 +4,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace PoeBot.Core
 {
-    public class BotEgine
+    public class FarmBot
     {
 
         CurrenciesService _CurrenciesSerive;
@@ -18,7 +19,9 @@ namespace PoeBot.Core
         LoggerService _loggerService;
         TradeService _TradeService;
         ItemsService _ItemService;
-        public BotEgine(LoggerService logger)
+        StashHelper _StashHelper;
+
+        public FarmBot(LoggerService logger)
         {
             _loggerService = logger;
         }
@@ -36,27 +39,22 @@ namespace PoeBot.Core
                 Win32.PoE_MainWindow();
             }
 
+            if (!ValidateFarmTabs())
+            {
+                throw new Exception("Tabs not settup propperly.");
+            }
+
             _CurrenciesSerive = new CurrenciesService(_loggerService);
             _ItemService = new ItemsService(_CurrenciesSerive);
             _TradeService = new TradeService(_ItemService, _CurrenciesSerive, _loggerService, new Tab());
 
             // Go to hideout
-            Win32.ChatCommand("/hideout");
-            Thread.Sleep(700);
-
-            // Detect Stash
-            if (!_TradeService.OpenStash())
-            {
-                _loggerService.Log("Stash is not found in the area.");
-                throw new Exception("Stash is not found in the area.");
-
-            }
 
             // Clean inventory
 
             _TradeService.ClearInventory("recycle_tab");
 
-            _TradeService.ScanTab();
+            _StashHelper.ScanTab();
 
             // Listen for trades
             _LogReaderServices =new ReadLogsServce(_loggerService, _CurrenciesSerive);
@@ -73,6 +71,19 @@ namespace PoeBot.Core
             _LogReaderServices.CustomerLeft += _TradeService.CustomerLeft;
             // Trade customer arrived event
             _LogReaderServices.CustomerArrived += _TradeService.BeginTrade;
+        }
+
+        private bool ValidateFarmTabs()
+        {
+            // Detect Stash
+            if (!_StashHelper.OpenStash())
+            {
+                _loggerService.Log($"{MethodBase.GetCurrentMethod().Name} Stash is not found in the area.");
+                return false;
+            }
+            var lTabs = OpenCV_Service.GetText(ScreenCapture.CaptureScreen());
+
+            return true;
         }
 
         public void Stop()

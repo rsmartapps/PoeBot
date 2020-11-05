@@ -262,14 +262,14 @@ namespace PoeBot.Core.Services
             }
         }
         
-        public static List<Tuple<Rectangle, string>> GetText(Bitmap source, int threshHold)
+        public static List<Tuple<Rectangle, string>> GetText(Bitmap source, int threshHold = 100)
         {
             List<Tuple<Rectangle, string>> lMatches = new List<Tuple<Rectangle, string>>();
-            int wPosition = 150;
-            int hPosition = 370;
+            //int wPosition = 150;
+            //int hPosition = 370;
             // Detect Bounding boxes of text tabs
             var cp = source.ToImage<Gray, byte>().Copy().ThresholdBinary(new Gray(threshHold), new Gray(255));
-            cp.ROI = new Rectangle(wPosition, hPosition, 730, 80);
+            //cp.ROI = new Rectangle(wPosition, hPosition, 730, 80);
             Mat M = new Mat();
             CvInvoke.EqualizeHist(cp, M);
             //cp.Save($@"C:\Users\Ruben\Desktop\tests\PoeTests2\{DateTime.Now.Ticks}.png");
@@ -296,8 +296,8 @@ namespace PoeBot.Core.Services
             foreach (Rectangle rect in boundTexts)
             {
                 var r = rect;
-                r.X += wPosition - 5;
-                r.Y += hPosition - 5;
+                r.X -= 5;
+                r.Y -= 5;
                 r.Width += 10;
                 r.Height += 10;
                 cp.ROI = r;
@@ -316,8 +316,8 @@ namespace PoeBot.Core.Services
             foreach (Rectangle rect in boundTexts)
             {
                 var r = rect;
-                r.X += wPosition - 5;
-                r.Y += hPosition - 5;
+                r.X -= 5;
+                r.Y -= 5;
                 r.Width += 10;
                 r.Height += 10;
                 cp.ROI = r;
@@ -336,73 +336,17 @@ namespace PoeBot.Core.Services
         }
         public static Position ContainsText(Bitmap source,string textToFind,int threshHold = 100)
         {
-            int wPosition = 150;
-            int hPosition = 370;
-            // Detect Bounding boxes of text tabs
-            var cp = source.ToImage<Gray, byte>().Copy().ThresholdBinary(new Gray(threshHold),new Gray(255));
-            cp.ROI = new Rectangle(wPosition, hPosition, 730, 80);
-            Mat M = new Mat();
-            CvInvoke.EqualizeHist(cp, M);
-            cp.Save($@"C:\Users\Ruben\Desktop\tests\PoeTests2\{DateTime.Now.Ticks}.png");
-
-            // Sobel
-            Image<Gray, byte> sobel = cp.Sobel(1, 0, 3).AbsDiff(new Gray(0.0)).Convert<Gray, byte>();
-            Mat SE = CvInvoke.GetStructuringElement(ElementShape.Rectangle,new Size(15,1),new Point(-1,-1));
-            // Dilate
-            sobel = sobel.MorphologyEx( MorphOp.Dilate,SE,new Point(-1,-1),1,BorderType.Reflect,new MCvScalar(255));
-            // Find contours
-            VectorOfVectorOfPoint contours = new VectorOfVectorOfPoint();
-            Mat m = new Mat();
-            CvInvoke.FindContours(sobel,contours,m,RetrType.External, ChainApproxMethod.ChainApproxSimple);
-            List<Rectangle> boundTexts = new List<Rectangle>();
-            for (int i =0; i<contours.Size;i++)
+            var rect = GetText(source, threshHold).Where(e => e.Item2 == textToFind).FirstOrDefault()?.Item1;
+            if(rect != null)
             {
-                Rectangle r = CvInvoke.BoundingRectangle(contours[i]);
-                boundTexts.Add(r);
+                Position p = new Position();
+                p.Top = rect.Value.Y;
+                p.Left = rect.Value.X;
+                p.Width = rect.Value.Width;
+                p.Height = rect.Value.Height;
+                return p;
             }
-
-            // Detect all
-            InitTesseract(OcrEngineMode.TesseractOnly);
-            ocr.PageSegMode = PageSegMode.SparseText;
-            List<Tuple<Rectangle, string>> lMatches = new List<Tuple<Rectangle, string>>();
-            foreach (Rectangle rect in boundTexts)
-            {
-                var r = rect;
-                r.X += wPosition-5;
-                r.Y += hPosition-5;
-                r.Width += 10;
-                r.Height += 10;
-                cp.ROI = r;
-                cp.Save($@"C:\Users\Ruben\Desktop\tests\PoeTests2\{DateTime.Now.Ticks}.png");
-                ocr.SetImage(cp.Copy());
-                string txt = ocr.GetUTF8Text().Replace("\r\n","");
-                if (!String.IsNullOrWhiteSpace(txt))
-                {
-                    lMatches.Add(new Tuple<Rectangle, string>(r,txt));
-                }
-            }
-
-            // Detect only numbers
-            InitTesseract(OcrEngineMode.TesseractOnly,whiteList:"1234567890");
-            ocr.PageSegMode = PageSegMode.SingleChar;
-            foreach (Rectangle rect in boundTexts)
-            {
-                var r = rect;
-                r.X += wPosition - 5;
-                r.Y += hPosition - 5;
-                r.Width += 10;
-                r.Height += 10;
-                cp.ROI = r;
-                cp.Save($@"C:\Users\Ruben\Desktop\tests\PoeTests2\{DateTime.Now.Ticks}.png");
-                ocr.SetImage(cp.Copy());
-                string txt = ocr.GetUTF8Text().Replace("\r\n", "");
-                if (!String.IsNullOrWhiteSpace(txt))
-                {
-                    lMatches.Add(new Tuple<Rectangle, string>(r, txt));
-                }
-            }
-
-            return lMatches.Where(e => e.Item2 == textToFind);
+            return null;
         }
 
 

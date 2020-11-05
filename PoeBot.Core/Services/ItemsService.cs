@@ -16,6 +16,7 @@ namespace PoeBot.Core.Services
         {
             _CurrenciesService = currencyServices;
         }
+
         public string GetNameItem_PoE(string clip)
         {
             if (!String.IsNullOrEmpty(clip) && clip != "empty_string")
@@ -35,6 +36,7 @@ namespace PoeBot.Core.Services
             }
             return null;
         }
+
         public bool IsValidPrice(string ctrlC_PoE,CustomerInfo customer)
         {
             bool isvalidprice = false;
@@ -82,6 +84,7 @@ namespace PoeBot.Core.Services
             }
             return false;
         }
+
         public Price GetPrice_PoE(string item_info)
         {
             Price price = new Price();

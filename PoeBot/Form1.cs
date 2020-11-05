@@ -14,7 +14,7 @@ namespace PoeBot
 {
     public partial class Form1 : Form
     {
-        PoeBot.Core.BotEgine engine;
+        PoeBot.Core.TradeBot engine;
         public Form1()
         {
             InitializeComponent();
@@ -41,7 +41,7 @@ namespace PoeBot
                 {
 
                     if (engine == null)
-                        engine = new Core.BotEgine(_Logger);
+                        engine = new Core.TradeBot(_Logger);
                     engine.Start();
                     btnStartStop.Text = "Stop";
                 }
@@ -66,7 +66,7 @@ namespace PoeBot
 
         private void button1_Click(object sender, EventArgs e)
         {
-            Tests.NameTab();
+            Tests.Test();
         }
     }
 }
