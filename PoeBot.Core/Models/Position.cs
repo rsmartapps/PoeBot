@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace PoeBot.Core.Models
 {
-    class Position
+    public class Position
     {
         public int Left { get; set; } = -1;
 

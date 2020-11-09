@@ -599,6 +599,15 @@
     <Content Include="Assets\UI_Fragments_free\empty_cel2.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="Assets\UI_Fragments_free\Follow1.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\UI_Fragments_free\Follow2.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\UI_Fragments_free\Follow3.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="Assets\UI_Fragments_free\notactive_currency_tab.jpg">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

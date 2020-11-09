@@ -158,5 +158,20 @@ namespace PoeBot.Core.Services
         {
             return CommandsService.GetNameItem_PoE(clip);
         }
+        public Item GetCurrency(CurrenciesService _CurrenciesService, string clip)
+        {
+            if (String.IsNullOrEmpty(clip) || clip == "empty_string")
+            {
+                return null;
+            }
+            Item retItem = new Item();
+            retItem.Name = GetName(clip);
+            retItem.StackSize = GetStackSize(clip);
+            retItem.Price = new Price() { CurrencyType = _CurrenciesService.GetCurrencyByName(retItem.Name) };
+            if (retItem.Price.CurrencyType == null)
+                return null;
+            retItem.Price.Cost = retItem.Price.CurrencyType.ChaosEquivalent * retItem.StackSize;
+            return retItem;
+        }
     }
 }

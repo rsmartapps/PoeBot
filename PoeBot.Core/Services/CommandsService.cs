@@ -155,13 +155,24 @@ namespace PoeBot.Core.Services
             return null;
         }
 
-        internal static string GetItemNamePosition(Position position)
+        public static string GetItemNamePosition(Position position)
         {
             Win32.MoveTo(position.Left,position.Top);
             Thread.Sleep(300);
             string clip = CtrlC_PoE();
             Thread.Sleep(200);
             return GetNameItem_PoE(clip);
+        }
+
+        public static void KickFormParty(CustomerInfo customer)
+        {
+            Win32.ChatCommand("/kick " + customer.Nickname);
+        }
+        public static void InviteCustomer(CustomerInfo customer)
+        {
+            string command = "/invite " + customer.Nickname;
+
+            Win32.ChatCommand(command);
         }
     }
 }

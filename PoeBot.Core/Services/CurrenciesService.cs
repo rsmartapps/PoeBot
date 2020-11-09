@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using PoeBot.Core.Models;
+using PoeBot.Core.Models.Test;
 using System;
 using System.Collections;
 using System.Collections.Generic;

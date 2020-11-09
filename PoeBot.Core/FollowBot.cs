@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace PoeBot.Core
 {
-    public class TradeBot
+    public class FollowBot
     {
 
         CurrenciesService _CurrenciesSerive;
@@ -19,7 +19,7 @@ namespace PoeBot.Core
         LoggerService _loggerService;
         ItemsService _ItemService;
         private GameContext _GameContext;
-        public TradeBot(LoggerService logger)
+        public FollowBot(LoggerService logger)
         {
             _loggerService = logger;
         }

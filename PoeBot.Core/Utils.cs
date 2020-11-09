@@ -1,4 +1,5 @@
-﻿using PoeBot.Core.Services;
+﻿using Emgu.CV.Structure;
+using PoeBot.Core.Services;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -83,5 +84,14 @@ namespace PoeBot.Core
                 return p;
             }
         }
+        public static bool IsTradeAccepted()
+        {
+            Bitmap src = ScreenCapture.CaptureScreen();
+            Bgr low = new Bgr(12, 40, 0);
+            Bgr high = new Bgr(50, 70, 41);
+            return OpenCV_Service.InColorRange(src, low, high);
+        }
+
+        
     }
 }
